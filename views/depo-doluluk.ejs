@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Depo Kapasite Analizi | Kale Kilit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root { --kale-red: #DC143C; --bg-dark: #0a0a0a; --card-bg: #141414; }
+        body { background-color: var(--bg-dark); font-family: 'Segoe UI', sans-serif; color: #eee; }
+        .sidebar { width: 250px; height: 100vh; position: fixed; background: #000; border-right: 1px solid #222; }
+        .main-content { margin-left: 250px; padding: 2rem; }
+        .chart-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid #222; margin-bottom: 1.5rem; }
+        .depo-stat-card { border-left: 4px solid var(--kale-red); background: rgba(220, 20, 60, 0.05); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .progress-kale { background-color: #222; height: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="p-4 text-center"><h5 class="fw-bold text-white mb-0">KALE KİLİT</h5><small class="text-danger">DEPO ANALİZİ</small></div>
+    <nav class="nav flex-column mt-3">
+        <a class="nav-link text-white-50 p-3 text-decoration-none" href="/"><i class="bi bi-arrow-left me-2"></i> Ana Sayfa'ya Dön</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    <h4 class="fw-bold mb-4"><i class="bi bi-box-seam text-danger me-2"></i> DEPO KAPASİTE DURUMU DETAYI</h4>
+
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="chart-card">
+                <h6 class="small fw-bold text-uppercase mb-4">Anlık Doluluk Oranları</h6>
+                <div id="depoDetayList">
+                    </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="chart-card">
+                <h6 class="small fw-bold text-uppercase mb-4">Kapasite Uyarı Paneli</h6>
+                <div id="alertBox">
+                    <div class="alert alert-warning py-2 small" style="background: rgba(255,193,7,0.1); border-color: #ffc107; color: #ffc107;">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> %85 Üzeri Doluluk Tespit Edilen Depolar Var.
+                    </div>
+                </div>
+                <div style="height: 250px;"><canvas id="depoDagitimChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    async function loadData() {
+        const res = await fetch('/api/dashboard/all-stats');
+        const data = await res.json();
+
+        // Depo Listesini Çiz
+        document.getElementById('depoDetayList').innerHTML = data.depoKapasite.map(d => `
+            <div class="depo-stat-card">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="fw-bold">${d.Isim}</span>
+                    <span class="${parseFloat(d.Oran) > 80 ? 'text-danger' : 'text-success'}">%${d.Oran}</span>
+                </div>
+                <div class="progress progress-kale">
+                    <div class="progress-bar" style="width: ${d.Oran}%; background-color: ${parseFloat(d.Oran) > 80 ? '#DC143C' : '#28a745'}"></div>
+                </div>
+            </div>
+        `).join('');
+
+        // Grafik Çiz
+        new Chart(document.getElementById('depoDagitimChart'), {
+            type: 'doughnut',
+            data: {
+                labels: data.depoKapasite.map(x => x.Isim),
+                datasets: [{ data: data.depoKapasite.map(x => parseFloat(x.Oran)), backgroundColor: ['#DC143C', '#28a745', '#ffc107', '#00d4ff', '#6f42c1'], borderWidth: 0 }]
+            },
+            options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+    window.onload = loadData;
+</script>
+</body>
+</html>

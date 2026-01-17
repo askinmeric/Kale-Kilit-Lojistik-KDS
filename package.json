@@ -1,0 +1,21 @@
+{
+  "name": "kalekilitlojistik-kds",
+  "version": "2.0.0",
+  "description": "Kale Kilit Lojistik Karar Destek Sistemi",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "ejs": "^4.0.1",
+    "express": "^5.2.1",
+    "morgan": "^1.10.1",
+    "mysql2": "^3.16.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8"><title>Tedarikçi Seçim Simülatörü | Kale Kilit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root { --kale-red: #DC143C; --bg-dark: #0a0a0a; --card-bg: #141414; }
+        body { background-color: var(--bg-dark); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #eee; overflow-x: hidden; }
+        .sidebar { width: 250px; height: 100vh; position: fixed; background: #000; border-right: 1px solid #222; z-index: 1000; }
+        .main-content { margin-left: 250px; padding: 2rem; }
+        
+        /* 0.9rem Sabit Menü Boyutu */
+        .nav-link { 
+            color: #aaa !important; padding: 12px 20px; display: flex; 
+            align-items: center; text-decoration: none; border-left: 4px solid transparent; 
+            transition: 0.3s; font-size: 0.9rem !important; 
+        }
+        .nav-link.active { color: #fff !important; background: rgba(220, 20, 60, 0.1); border-left-color: var(--kale-red); }
+        
+        .chart-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid #222; height: 100%; }
+        .slider-kale { accent-color: #00d4ff; width: 100%; cursor: pointer; }
+        .result-box { background: rgba(255, 215, 0, 0.05); border: 1px solid #ffd700; border-radius: 8px; padding: 2rem; text-align: center; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="p-4 text-center"><h5 class="fw-bold text-white mb-0">KALE KİLİT</h5><small class="text-danger">TEDARİKÇİ KDS</small></div>
+    <nav class="nav flex-column mt-3">
+        <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> Ana Sayfa</a>
+        <a class="nav-link" href="/maliyet-trendi"><i class="bi bi-truck me-2"></i> Taşıma Maliyet Trendi</a>
+        <a class="nav-link" href="/depo-kapasite"><i class="bi bi-box-seam me-2"></i> Depo Kapasite Durumu</a>
+        <a class="nav-link active" href="/tedarikci-analizi"><i class="bi bi-people me-2"></i> Tedarikçi Performans Analizi</a>
+        <a class="nav-link" href="/teslimat-performansi"><i class="bi bi-clock-history me-2"></i> Teslimat Performansı</a>
+        <a class="nav-link" href="/sezonluk-is-yuku"><i class="bi bi-bar-chart-steps me-2"></i> Sezonluk İş Yükü</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="chart-card shadow-sm">
+                <h6 class="fw-bold text-uppercase mb-4 small"><i class="bi bi-sliders me-2"></i> Tedarikçi Seçim Simülatörü</h6>
+                
+                <div class="mb-4">
+                    <label class="d-flex justify-content-between small mb-2 opacity-75">Hız Önceliği <span>%<b id="vHiz">50</b></span></label>
+                    <input type="range" class="slider-kale" id="sHiz" min="0" max="100" value="50" oninput="calculateBest()">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="d-flex justify-content-between small mb-2 opacity-75">Kalite Önceliği <span>%<b id="vKal">50</b></span></label>
+                    <input type="range" class="slider-kale" id="sKal" min="0" max="100" value="50" oninput="calculateBest()">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="d-flex justify-content-between small mb-2 opacity-75">Fiyat Önceliği <span>%<b id="vFiy">50</b></span></label>
+                    <input type="range" class="slider-kale" id="sFiy" min="0" max="100" value="50" oninput="calculateBest()">
+                </div>
+
+                <div class="result-box">
+                    <i class="bi bi-trophy text-warning fs-1"></i>
+                    <p class="small text-uppercase mt-2 mb-1 text-secondary">Tercih Edilebilir Tedarikçi</p>
+                    <h3 class="fw-bold text-warning" id="bestName">HESAPLANIYOR...</h3>
+                    <div class="badge bg-warning text-dark px-3 py-2">Puan: <b id="bestScore">0</b></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="chart-card">
+                <h6 class="fw-bold text-uppercase mb-4 small"><i class="bi bi-bar-chart-steps me-2"></i> Tedarikçi Karşılaştırma Analizi</h6>
+                <div style="height: 450px;"><canvas id="stackedChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Veritabanından gelen verileri simüle eden tedarikçi listesi
+    const suppliers = [
+        {name: "Toros Ambalaj", hiz: 85, kalite: 92, fiyat: 75},
+        {name: "Teknik Lojistik", hiz: 90, kalite: 80, fiyat: 82},
+        {name: "Anadolu Metal", hiz: 75, kalite: 88, fiyat: 70},
+        {name: "Ege Yay", hiz: 70, kalite: 75, fiyat: 95}
+    ];
+
+    let myChart;
+
+    function calculateBest() {
+        // Slider değerlerini al
+        const wHiz = document.getElementById('sHiz').value / 100;
+        const wKal = document.getElementById('sKal').value / 100;
+        const wFiy = document.getElementById('sFiy').value / 100;
+
+        // UI Güncelle
+        document.getElementById('vHiz').innerText = Math.round(wHiz * 100);
+        document.getElementById('vKal').innerText = Math.round(wKal * 100);
+        document.getElementById('vFiy').innerText = Math.round(wFiy * 100);
+
+        // En iyi tedarikçiyi hesapla (Ağırlıklı Puanlama)
+        let best = {name: "", score: -1};
+        suppliers.forEach(s => {
+            let total = (s.hiz * wHiz) + (s.kalite * wKal) + (s.fiyat * wFiy);
+            if(total > best.score) best = {name: s.name, score: total.toFixed(1)};
+        });
+
+        document.getElementById('bestName').innerText = best.name.toUpperCase();
+        document.getElementById('bestScore').innerText = best.score;
+    }
+
+    window.onload = () => {
+        const ctx = document.getElementById('stackedChart');
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: suppliers.map(x => x.name),
+                datasets: [
+                    {label: 'Hız', data: suppliers.map(x => x.hiz), backgroundColor: '#00d4ff'},
+                    {label: 'Kalite', data: suppliers.map(x => x.kalite), backgroundColor: '#20c997'},
+                    {label: 'Fiyat', data: suppliers.map(x => x.fiyat), backgroundColor: '#fd7e14'}
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true, grid: { display: false } },
+                    y: { stacked: true, grid: { color: '#222' }, beginAtZero: true }
+                },
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        // Sayfa açıldığında %50 üzerinden ilk hesaplamayı yap
+        calculateBest();
+    };
+</script>
+</body>
+</html>

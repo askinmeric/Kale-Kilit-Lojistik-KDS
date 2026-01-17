@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Kale Kilit | Lojistik Yönetim Kokpiti</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root { 
+            --kale-red: #DC143C; 
+            --kale-orange: #ffc107;
+            --kale-green: #28a745;
+            --bg-dark: #0a0a0a; 
+            --card-bg: #141414; 
+        }
+        
+        body { 
+            background-color: var(--bg-dark); 
+            font-family: 'Segoe UI', sans-serif; 
+            font-size: 14px; /* 0.9rem Standardı */
+            color: #eee; 
+            margin: 0;
+            overflow-x: hidden; 
+        }
+
+        /* Sabit Sidebar Tasarımı */
+        .sidebar { 
+            width: 250px; height: 100vh; position: fixed; 
+            top: 0; left: 0;
+            background: #000; border-right: 1px solid #222; z-index: 1000; 
+        }
+        
+        .sidebar-brand { padding: 1.5rem; text-align: center; border-bottom: 1px solid #111; }
+
+        .nav-link { 
+            color: #aaa !important; padding: 12px 20px; display: flex; align-items: center; 
+            text-decoration: none; border-left: 4px solid transparent; 
+            transition: 0.2s all; font-size: 0.9rem !important; 
+        }
+
+        .nav-link:hover { color: #fff !important; background: rgba(255,255,255,0.03); }
+        .nav-link.active { color: #fff !important; background: rgba(220, 20, 60, 0.1); border-left-color: var(--kale-red); }
+
+        /* Ana İçerik Alanı */
+        .main-content { margin-left: 250px; padding: 1.5rem; }
+
+        .chart-card { 
+            background: var(--card-bg); border-radius: 12px; 
+            padding: 1.2rem; border: 1px solid #222; margin-bottom: 1rem; 
+        }
+        
+        .card-title { 
+            font-size: 0.75rem; font-weight: 700; color: #666; 
+            text-transform: uppercase; margin-bottom: 1rem; letter-spacing: 0.5px;
+        }
+
+        .chart-wrapper { position: relative; height: 260px; width: 100%; }
+        
+        /* Harita Ayarı */
+        #map { height: 260px; border-radius: 8px; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="sidebar-brand">
+        <h5 class="fw-bold text-white mb-0">KALE KİLİT</h5>
+        <small class="text-danger text-uppercase small" style="letter-spacing: 1px;">Lojistik KDS</small>
+    </div>
+    <nav class="nav flex-column mt-3">
+        <a class="nav-link active" href="/"><i class="bi bi-speedometer2 me-2"></i> Ana Sayfa</a>
+        <a class="nav-link" href="/maliyet-trendi"><i class="bi bi-truck me-2"></i> Taşıma Maliyet Trendi</a>
+        <a class="nav-link" href="/depo-kapasite"><i class="bi bi-box-seam me-2"></i> Depo Kapasite Durumu</a>
+        <a class="nav-link" href="/tedarikci-analizi"><i class="bi bi-people me-2"></i> Tedarikçi Performans Analizi</a>
+        <a class="nav-link" href="/teslimat-performansi"><i class="bi bi-clock-history me-2"></i> Teslimat Performansı</a>
+        <a class="nav-link" href="/sezonluk-is-yuku"><i class="bi bi-bar-chart-steps me-2"></i> Sezonluk İş Yükü</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="card-title">1. TAŞIMA MALİYET TRENDİ (AYLIK)</h6>
+                <div class="chart-wrapper"><canvas id="cMaliyet"></canvas></div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="card-title">2. DEPO KAPASİTE DURUMU (%)</h6>
+                <div class="chart-wrapper"><canvas id="cDepo"></canvas></div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="card-title">3. TEDARİKÇİ KALİTE PUANLARI</h6>
+                <div id="tList" class="overflow-auto pe-2" style="height: 260px;"></div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h6 class="card-title">4. BÖLGESEL SEVKİYAT YOĞUNLUĞU</h6>
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <div class="col-lg-12">
+            <div class="chart-card">
+                <h6 class="card-title">5. TESLİMAT PERFORMANS ANALİZİ (OTIF - YILLIK)</h6>
+                <div class="chart-wrapper"><canvas id="cOTIF"></canvas></div>
+            </div>
+        </div>
+
+        <div class="col-lg-12">
+            <div class="chart-card">
+                <h6 class="card-title">6. SEZONLUK İŞ YÜKÜ (KAPASİTE SINIRI: 95)</h6>
+                <div class="chart-wrapper"><canvas id="cIsYuku"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const KALE_RED = '#DC143C';
+    const KALE_ORANGE = '#ffc107';
+    const KALE_GREEN = '#28a745';
+    let charts = {}, map;
+
+    // Merkezi Grafik Çizim Fonksiyonu
+    function draw(id, type, labels, data, color, fill, borderColor, radius, limitVal = 0) {
+        if (charts[id]) charts[id].destroy();
+        const datasets = [{ 
+            data, 
+            backgroundColor: color, 
+            borderColor: borderColor || color, 
+            fill: fill ? 'origin' : false, 
+            borderRadius: radius, 
+            tension: 0.4 
+        }];
+
+        if (limitVal > 0) {
+            datasets.push({
+                data: Array(labels.length).fill(limitVal),
+                borderColor: KALE_RED,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+                borderWidth: 2
+            });
+        }
+
+        charts[id] = new Chart(document.getElementById(id), {
+            type: type,
+            data: { labels, datasets },
+            options: { 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: '#222' } },
+                    x: { grid: { display: false } }
+                } 
+            }
+        });
+    }
+
+    async function init() {
+        try {
+            const res = await fetch('/api/dashboard/all-stats');
+            const data = await res.json();
+
+            // 4. HARİTA: SİYAH TEMA AYARI
+            if (map) map.remove();
+            map = L.map('map').setView([39.0, 35.2], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; CARTO'
+            }).addTo(map);
+
+            const coords = { 'Istanbul': [41, 29], 'Ankara': [40, 33], 'Izmir': [38, 27], 'Gebze': [40.8, 29.4] };
+            (data.bolgeselSevkiyat || []).forEach(s => {
+                if (coords[s.sehir]) L.circleMarker(coords[s.sehir], { radius: 10, color: KALE_RED, fillOpacity: 0.8 }).addTo(map);
+            });
+
+            // 1. MALİYET TRENDİ
+            draw('cMaliyet', 'line', data.maliyetTrend.map(x=>x.Ay), data.maliyetTrend.map(x=>x.Toplam), 'rgba(220, 20, 60, 0.2)', true, KALE_RED, 0);
+
+            // 2. DEPO: RENK MANTIĞI (%80 Üstü Kırmızı, %50-%80 Turuncu, Altı Yeşil)
+            const depoColors = data.depoKapasite.map(x => {
+                const oran = parseFloat(x.Oran);
+                if (oran > 80) return KALE_RED;
+                if (oran >= 50) return KALE_ORANGE;
+                return KALE_GREEN;
+            });
+            draw('cDepo', 'bar', data.depoKapasite.map(x=>x.Isim), data.depoKapasite.map(x=>x.Oran), depoColors, false, depoColors, 5);
+
+            // 5. OTIF (YILLIK - 12 AY)
+            draw('cOTIF', 'bar', data.teslimatPerf.map(x=>x.Ay), data.teslimatPerf.map(x=>x.Ok), KALE_GREEN, false, KALE_GREEN, 5);
+
+            // 6. İŞ YÜKÜ (YILLIK - 12 AY)
+            draw('cIsYuku', 'line', data.isYuku.map(x=>x.Ay), data.isYuku.map(x=>x.Toplam), '#00d4ff', false, '#00d4ff', 0, 95);
+
+            // 3. TEDARİKÇİ LİSTESİ
+            document.getElementById('tList').innerHTML = data.tedarikciPerf.map(t => `
+                <div class="mb-3 px-1 small">
+                    <div class="d-flex justify-content-between mb-1"><span>${t.Isim}</span><span>%${t.Puan}</span></div>
+                    <div class="progress" style="height:5px; background:#222;"><div class="progress-bar bg-success" style="width:${t.Puan}%"></div></div>
+                </div>`).join('');
+
+        } catch (err) { console.error("Veri yükleme hatası:", err); }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

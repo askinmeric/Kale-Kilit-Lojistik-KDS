@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8"><title>Maliyet Trendi | Kale Kilit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root { --kale-red: #DC143C; --bg-dark: #0a0a0a; --card-bg: #141414; }
+        body { background-color: var(--bg-dark); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #eee; overflow-x: hidden; }
+        .sidebar { width: 250px; height: 100vh; position: fixed; background: #000; border-right: 1px solid #222; z-index: 1000; }
+        .main-content { margin-left: 250px; padding: 1.5rem; }
+        
+        /* 0.9rem Sabit Menü Boyutu */
+        .nav-link { 
+            color: #aaa !important; padding: 12px 20px; display: flex; 
+            align-items: center; text-decoration: none; border-left: 4px solid transparent; 
+            transition: 0.3s; font-size: 0.9rem !important; 
+        }
+        .nav-link.active { color: #fff !important; background: rgba(220, 20, 60, 0.1); border-left-color: var(--kale-red); }
+        
+        .chart-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid #222; margin-bottom: 2rem; }
+        .filter-select { background: #1a1a1a; color: #fff; border: 1px solid #333; font-size: 0.8rem; padding: 5px 10px; border-radius: 4px; outline: none; }
+        .badge-trend { padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="p-4 text-center"><h5 class="fw-bold text-white mb-0">KALE KİLİT</h5><small class="text-danger">LOJİSTİK KDS</small></div>
+    <nav class="nav flex-column mt-3">
+        <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> Ana Sayfa</a>
+        <a class="nav-link active" href="/maliyet-trendi"><i class="bi bi-truck me-2"></i> Taşıma Maliyet Trendi</a>
+        <a class="nav-link" href="/depo-kapasite"><i class="bi bi-box-seam me-2"></i> Depo Kapasite Durumu</a>
+        <a class="nav-link" href="/tedarikci-analizi"><i class="bi bi-people me-2"></i> Tedarikçi Performans Analizi</a>
+        <a class="nav-link" href="/teslimat-performansi"><i class="bi bi-clock-history me-2"></i> Teslimat Performansı</a>
+        <a class="nav-link" href="/sezonluk-is-yuku"><i class="bi bi-bar-chart-steps me-2"></i> Sezonluk İş Yükü</a>
+    </nav>
+</div>
+
+<div class="main-content">
+    <div class="chart-card">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h6 class="fw-bold text-uppercase mb-0 small"><i class="bi bi-graph-up text-danger me-2"></i> Taşıma Maliyet Trend Analizi</h6>
+            <div class="d-flex gap-2 align-items-center">
+                <select id="fSecici" class="filter-select"><option value="">Tüm Firmalar</option></select>
+                <input type="date" id="mStart" class="filter-select" value="2025-01-01">
+                <input type="date" id="mEnd" class="filter-select" value="2025-12-31">
+                <button onclick="updateMaliyetPage()" class="btn btn-danger btn-sm px-3 fw-bold">FİLTRELE</button>
+                <div id="trendBadge" class="badge-trend d-none"></div>
+            </div>
+        </div>
+        <div style="height: 350px;"><canvas id="mChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+        <h6 class="fw-bold text-uppercase mb-4 small text-info"><i class="bi bi-calculator me-2"></i> Enflasyon Simülatörü</h6>
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <input type="range" class="w-100" style="accent-color:#DC143C" id="infSlider" min="0" max="100" value="0" oninput="runSimulation()">
+                <div class="mt-2 small opacity-75">Öngörülen Artış Oranı: %<span id="infVal">0</span></div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 border border-warning rounded text-center" style="background: rgba(255,215,0,0.05)">
+                    <small class="text-warning fw-bold d-block mb-1">EK BÜTÇE İHTİYACI</small>
+                    <h3 class="fw-bold text-warning mb-0" id="extraBudget">0 ₺</h3>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4" style="height: 300px;"><canvas id="sChart"></canvas></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let mChart, sChart, currentRawData = [];
+
+    async function updateMaliyetPage() {
+        const firma = document.getElementById('fSecici').value;
+        const start = document.getElementById('mStart').value;
+        const end = document.getElementById('mEnd').value;
+        
+        const res = await fetch(`/api/dashboard/all-stats?startDate=${start}&endDate=${end}&firma=${firma}`);
+        const data = await res.json();
+
+        const fs = document.getElementById('fSecici');
+        if(fs.options.length === 1 && data.firmalar) {
+            data.firmalar.forEach(x => fs.add(new Option(x.Nakliyeci, x.Nakliyeci)));
+        }
+
+        currentRawData = data.maliyetTrend.map(x => parseFloat(x.Toplam));
+        const labels = data.maliyetTrend.map(x => x.Ay);
+
+        // Yüzdesel Değişim Hesaplama
+        const badge = document.getElementById('trendBadge');
+        if(currentRawData.length >= 2) {
+            const degisim = ((currentRawData[currentRawData.length-1] - currentRawData[0]) / currentRawData[0]) * 100;
+            badge.className = degisim >= 0 ? 'badge-trend bg-danger text-white' : 'badge-trend bg-success text-white';
+            badge.innerHTML = `%${Math.abs(degisim).toFixed(1)} ${degisim >= 0 ? 'Artış' : 'Azalış'}`;
+            badge.classList.remove('d-none');
+        }
+
+        if(mChart) mChart.destroy();
+        mChart = new Chart(document.getElementById('mChart'), {
+            type: 'line',
+            data: { labels, datasets: [{ data: currentRawData, borderColor: '#DC143C', fill: true, backgroundColor: 'rgba(220,20,60,0.1)', tension: 0.4 }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        if(sChart) sChart.destroy();
+        sChart = new Chart(document.getElementById('sChart'), {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Mevcut', data: currentRawData, borderColor: '#00d4ff' }, { label: 'Simüle', data: [...currentRawData], borderColor: '#DC143C', borderDash: [5,5] }] },
+            options: { maintainAspectRatio: false }
+        });
+        runSimulation();
+    }
+
+    function runSimulation() {
+        const rate = document.getElementById('infSlider').value;
+        document.getElementById('infVal').innerText = rate;
+        const simData = currentRawData.map(v => v * (1 + rate/100));
+        if(sChart) { sChart.data.datasets[1].data = simData; sChart.update('none'); }
+        const diff = simData.reduce((a,b)=>a+b, 0) - currentRawData.reduce((a,b)=>a+b, 0);
+        document.getElementById('extraBudget').innerText = new Intl.NumberFormat('tr-TR').format(Math.round(diff)) + " ₺";
+    }
+
+    window.onload = updateMaliyetPage;
+</script>
+</body>
+</html>
